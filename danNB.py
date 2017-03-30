@@ -56,7 +56,8 @@ imageDim = 28
 labeled_images = pd.read_csv('./input/train.csv')
 
 # Show how many images are in dataset
-print(labeled_images.size/(imageDim**2), 'total images in training set.')
+# Each image is 785 elements: 1 label, then 28*28 = 784 pixels
+print(labeled_images.size/(imageDim**2+1), 'total images in training set.')
 
 # iloc selects data based on its integer position in the array
 # Alternatively, can use loc to select data by label type

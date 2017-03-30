@@ -50,7 +50,7 @@ images = labeled_images.iloc[0:NUM_TRAINING_IMAGES, 1:]
 labels = labeled_images.iloc[0:NUM_TRAINING_IMAGES, :1]
 
 # Show how many images are in dataset and number used for training
-print(labeled_images.size/(imageDim**2), 'total images in training set.')
+print(labeled_images.size/(imageDim**2+1), 'total images in training set.')
 print(images.size/(imageDim**2), 'images used for training.')
 
 # Split training set into training and validation sets
