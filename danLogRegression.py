@@ -1,4 +1,4 @@
-# Examine MNIST dataset using Logistic Regression models
+# Examine MNIST dataset using Logistic Regression and LogisticRegressionCV models
 
 # Import other packages
 import pandas as pd
@@ -7,6 +7,9 @@ from sklearn.linear_model import *
 import copy  # Using copy.deepcopy()
 import time  # Using time.time()
 # import sys  # Allow use of sys.exit()
+
+# Possible models
+models = [LogisticRegression, LogisticRegressionCV]
 
 # List the different options for descent algorithms
 # liblinear: Best for small datasets. Only solver that supports L1 regularization,
@@ -17,19 +20,21 @@ solvers = ['liblinear', 'newton-cg', 'lbfgs', 'sag']
 
 # USER INPUTS #############################################
 
-# Choose desired model by its index (lists are zero-indexed)
-solverIndex = 3
+# Choose desired model and solver by their indexes (lists are zero-indexed)
+modelIndex = 1
+solverIndex = 2
 
 # Regularization Parameters:
 regPenalty = 'l2' # Can be l1 or l2 (only liblinear supports l1)
 regParameter = 1.0 # Float from 0 to infinity. Smaller value = stronger regularization. Default is 1.0
+                   # Not used by LogisticRegressionCV
 
 # Choose to use one-versus-rest or multinomial classification.
 # Multinomial is not supported by liblinear solver
 multi = 'multinomial' # Options: 'ovr' or 'multinomial'
 
 # Choose number of training images to use
-NUM_TRAINING_IMAGES = 500
+NUM_TRAINING_IMAGES = 40000
 
 # Choose whether data gets binarized
 binarizeData = True
@@ -43,6 +48,8 @@ binarizeData = True
 print(' ')
 
 # Print the learning setup
+clfName = models[modelIndex].__name__
+print("Model Used: ", clfName)
 print("Solver Used: ", solvers[solverIndex])
 print("Classification: ", multi)
 print('Regularization: ', regPenalty, regParameter)
@@ -85,8 +92,13 @@ if binarizeData:
     train_images[train_images > 0] = 1
 
 
-# Train Gaussia Naive Bayes on the cleaned up data
-clf = LogisticRegression(solver=solvers[solverIndex], penalty=regPenalty, C=regParameter, multi_class=multi)
+# Train model
+clf = None
+if clfName == 'LogisticRegression':
+    clf = LogisticRegression(solver=solvers[solverIndex], penalty=regPenalty, C=regParameter, multi_class=multi)
+else:
+    clf = LogisticRegressionCV(solver=solvers[solverIndex], penalty=regPenalty, multi_class=multi)
+
 train_start_time = time.time()
 clf.fit(train_images, train_labels.values.ravel())
 train_time = time.time() - train_start_time
