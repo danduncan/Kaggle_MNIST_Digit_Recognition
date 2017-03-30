@@ -6,13 +6,13 @@
 #     import matplotlib.image as mpimg
 
 # Import other packages
-import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn import svm
-
-# import sys # Allow exiting via sys.exit()
-import copy  # Allow deepcopy
+from getTrainingData import *
 import time  # Allow time.time()
+# import sys # Allow exiting via sys.exit()
+# import pandas as pd
+# from sklearn.model_selection import train_test_split
+
 
 # User inputs ############################################################
 
@@ -35,45 +35,12 @@ binarizeData = True
 
 #######################################################################
 
-# Print blank line to show script has started
+# Print learning setup
 print(' ')
-
-# Images used are from MNIST dataset: 28x28 pixels
-imageDim = 28
-
-# Use read_csv to read training file into a dataframe
-labeled_images = pd.read_csv('./input/train.csv')
-
-# iloc selects data based on its integer position in the array
-# Alternatively, can use loc to select data by label type
-images = labeled_images.iloc[0:NUM_TRAINING_IMAGES, 1:]
-labels = labeled_images.iloc[0:NUM_TRAINING_IMAGES, :1]
-
-# Show how many images are in dataset and number used for training
-print(labeled_images.size/(imageDim**2+1), 'total images in training set.')
-print(images.size/(imageDim**2), 'images used for training.')
-
-# Split training set into training and validation sets
-train_images, test_images, train_labels, test_labels = train_test_split(images, labels, train_size=0.8, random_state=0)
-
-# Note that the split above does not copy the data,
-# It merely creates a reference to the original. Need to manually run a deep copy:
-train_images = copy.deepcopy(train_images)
-test_images = copy.deepcopy(test_images)
-train_labels = copy.deepcopy(train_labels)
-test_labels = copy.deepcopy(test_labels)
-
-
-# Clean up the data by rounding real values to either 0 or 1
-if binarizeData:
-    test_images[test_images > 0] = 1
-    train_images[train_images > 0] = 1
-    print('Data binarized')
-else:
-    print('Data not binarized')
-
 print('Kernel: ', svmKernel)  # Inform user what kind of kernel is being used
 
+# Read in training data
+train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData)
 
 # OPTIONAL: View an image (will need to uncomment matplotlib)
 # i=1

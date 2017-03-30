@@ -1,15 +1,13 @@
 # Examine MNIST dataset using Logistic Regression and LogisticRegressionCV models
 
-# Import other packages
-import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import *
 from getTrainingData import *
-import copy  # Using copy.deepcopy()
 import time  # Using time.time()
 # import sys  # Allow use of sys.exit()
+# import pandas as pd
+# from sklearn.model_selection import train_test_split
 
-# Possible models
+# Possible models:
 models = [LogisticRegression, LogisticRegressionCV]
 
 # List the different options for descent algorithms
@@ -43,21 +41,13 @@ binarizeData = True
 ##########################################################
 
 
-# START SCRIPT ###
-
-# Print blank line to show script has started
-print(' ')
-
 # Print the learning setup
+print(' ')
 clfName = models[modelIndex].__name__
 print("Model Used: ", clfName)
 print("Solver Used: ", solvers[solverIndex])
 print("Classification: ", multi)
 print('Regularization: ', regPenalty, regParameter)
-if binarizeData:
-    print("Data binarized.")
-else:
-    print("Data not binarized.")
 
 # Read in training data
 train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData)

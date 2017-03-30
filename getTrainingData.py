@@ -6,6 +6,11 @@ import copy  # Using copy.deepcopy()
 
 
 def get_training_data(num_training_images, binarize_data):
+    if binarize_data:
+        print("Data binarized.")
+    else:
+        print("Data not binarized.")
+
     # Images used are from MNIST dataset: 28x28 pixels
     image_dim = 28
 
