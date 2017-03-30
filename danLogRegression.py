@@ -4,6 +4,7 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import *
+from getTrainingData import *
 import copy  # Using copy.deepcopy()
 import time  # Using time.time()
 # import sys  # Allow use of sys.exit()
@@ -34,7 +35,7 @@ regParameter = 1.0 # Float from 0 to infinity. Smaller value = stronger regulari
 multi = 'multinomial' # Options: 'ovr' or 'multinomial'
 
 # Choose number of training images to use
-NUM_TRAINING_IMAGES = 40000
+NUM_TRAINING_IMAGES = 500
 
 # Choose whether data gets binarized
 binarizeData = True
@@ -58,47 +59,17 @@ if binarizeData:
 else:
     print("Data not binarized.")
 
-# Images used are from MNIST dataset: 28x28 pixels
-imageDim = 28
+# Read in training data
+train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData)
 
-# Use read_csv to read training file into a dataframe
-labeled_images = pd.read_csv('./input/train.csv')
-
-# Show how many images are in dataset
-# Each image is 785 elements: 1 label, then 28*28 = 784 pixels
-print(labeled_images.size/(imageDim**2+1), 'total images in training set.')
-
-# iloc selects data based on its integer position in the array
-# Alternatively, can use loc to select data by label type
-images = labeled_images.iloc[0:NUM_TRAINING_IMAGES, 1:]
-labels = labeled_images.iloc[0:NUM_TRAINING_IMAGES, :1]
-
-# Output how many images are actually being used
-print(images.size/(imageDim**2), 'images used for training.')
-
-# Split training set into training and validation sets
-train_images, test_images, train_labels, test_labels = train_test_split(images, labels, train_size=0.8, random_state=0)
-
-# Not that the split above does not copy the data
-# It merely creates a reference to the original. Need to manually deep copy:
-train_images = copy.deepcopy(train_images)
-test_images = copy.deepcopy(test_images)
-train_labels = copy.deepcopy(train_labels)
-test_labels = copy.deepcopy(test_labels)
-
-# Clean up the data by rounding real values to either 0 or 1
-if binarizeData:
-    test_images[test_images > 0] = 1
-    train_images[train_images > 0] = 1
-
-
-# Train model
+# Create model
 clf = None
 if clfName == 'LogisticRegression':
     clf = LogisticRegression(solver=solvers[solverIndex], penalty=regPenalty, C=regParameter, multi_class=multi)
 else:
     clf = LogisticRegressionCV(solver=solvers[solverIndex], penalty=regPenalty, multi_class=multi)
 
+# Train model
 train_start_time = time.time()
 clf.fit(train_images, train_labels.values.ravel())
 train_time = time.time() - train_start_time
