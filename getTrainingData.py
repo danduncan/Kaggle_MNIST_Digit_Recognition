@@ -3,13 +3,18 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import copy  # Using copy.deepcopy()
+from sklearn.preprocessing import StandardScaler
 
-
-def get_training_data(num_training_images, binarize_data):
+def get_training_data(num_training_images=500, binarize_data=False, rescale_data=False):
     if binarize_data:
         print("Data binarized.")
     else:
         print("Data not binarized.")
+
+    if rescale_data:
+        print("Data rescaled.")
+    else:
+        print("Data not rescaled.")
 
     # Images used are from MNIST dataset: 28x28 pixels
     image_dim = 28
@@ -44,5 +49,12 @@ def get_training_data(num_training_images, binarize_data):
     if binarize_data:
         test_images[test_images > 0] = 1
         train_images[train_images > 0] = 1
+
+    if rescale_data:
+        scaler = StandardScaler()
+        scaler.fit(train_images)
+        train_images = scaler.transform(train_images)
+        test_images = scaler.transform(test_images)
+
 
     return train_images, train_labels, test_images, test_labels

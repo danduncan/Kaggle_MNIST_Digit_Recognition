@@ -17,10 +17,13 @@ hidden_layer_sizes = (100,100)
 regParameter = 0.0001 # Regularization term. Default is 0.0001
 
 # Choose number of training images to use
-NUM_TRAINING_IMAGES = 500
+NUM_TRAINING_IMAGES = 40000
 
 # Choose whether data gets binarized
 binarizeData = True
+
+# Rescale data?
+scaleData = False
 
 ##########################################################
 
@@ -32,7 +35,7 @@ print('Regularization: ', regParameter)
 print('Layer size: ', hidden_layer_sizes)
 
 # Read in training data
-train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData)
+train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData, scaleData)
 
 # Create model
 clf = MLPClassifier(hidden_layer_sizes=hidden_layer_sizes, alpha=regParameter)
