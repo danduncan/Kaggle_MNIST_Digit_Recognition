@@ -23,7 +23,12 @@ NUM_TRAINING_IMAGES = 40000
 binarizeData = True
 
 # Rescale data?
-scaleData = False
+scaleData = True
+
+# Dimensionality reduction via PCA?
+# dim_reduction = None turns this off
+# dim_reduction = up to number of pixels (784) turns this on and keeps that many dimensions
+pca_dimension = 300
 
 ##########################################################
 
@@ -35,7 +40,7 @@ print('Regularization: ', regParameter)
 print('Layer size: ', hidden_layer_sizes)
 
 # Read in training data
-train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData, scaleData)
+train_images, train_labels, test_images, test_labels = get_training_data(NUM_TRAINING_IMAGES, binarizeData, scaleData, pca_dimension)
 
 # Create model
 clf = MLPClassifier(hidden_layer_sizes=hidden_layer_sizes, alpha=regParameter)

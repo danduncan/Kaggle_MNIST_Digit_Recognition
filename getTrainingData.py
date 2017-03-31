@@ -4,8 +4,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import copy  # Using copy.deepcopy()
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
-def get_training_data(num_training_images=500, binarize_data=False, rescale_data=False):
+def get_training_data(num_training_images=500, binarize_data=False, rescale_data=False, pca_dimension=None):
+
+    # Images used are from MNIST dataset: 28x28 pixels
+    image_dim = 28
+
     if binarize_data:
         print("Data binarized.")
     else:
@@ -16,8 +21,11 @@ def get_training_data(num_training_images=500, binarize_data=False, rescale_data
     else:
         print("Data not rescaled.")
 
-    # Images used are from MNIST dataset: 28x28 pixels
-    image_dim = 28
+    if pca_dimension is None:
+        print("PCA not used")
+    else:
+        print("PCA reduced data to dimension: ", pca_dimension)
+
 
     # Use read_csv to read training file into a dataframe
     labeled_images = pd.read_csv('./input/train.csv')
@@ -55,6 +63,13 @@ def get_training_data(num_training_images=500, binarize_data=False, rescale_data
         scaler.fit(train_images)
         train_images = scaler.transform(train_images)
         test_images = scaler.transform(test_images)
+
+
+    if pca_dimension is not None:
+        pca = PCA(n_components=pca_dimension)
+        pca.fit(train_images)
+        train_images = pca.transform(train_images)
+        test_images = pca.transform(test_images)
 
 
     return train_images, train_labels, test_images, test_labels
