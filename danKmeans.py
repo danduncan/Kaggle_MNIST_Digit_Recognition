@@ -154,12 +154,17 @@ def main():
 
 def mainCV():
     # Run grid search on HybridKMeans
-    params = {'n_clusters': [1,2],
-              'n_neighbors': [1,2]}
-    refit = True
+    # Parameters searched so far:
+    # n_clusters = 1 2 3 4 8 16 24 32
+    # n_neighbors = 1 2 3 4
+    # Best results:
+    #     nc=32 nn=1  94.15% validation accuracy
+    #     nc=64 nn=1  95.03% validation accuracy
+    params = {'n_clusters': [64],
+              'n_neighbors': [1]}
+    refit = False
+    NUM_TRAINING_IMAGES = 40000
 
-
-    NUM_TRAINING_IMAGES = 500
     # Get the training data
     binarizeData = True
     scaleData = False
@@ -170,35 +175,40 @@ def mainCV():
                                                                              pca_dimension)
 
     train_labels = train_labels.as_matrix().ravel()
+    test_labels = test_labels.as_matrix().ravel()
 
-    clf = GridSearchCV(HybridKMeans(), params)
+    clf = GridSearchCV(HybridKMeans(), param_grid=params, refit=refit)
 
-
+    print("Begin training...")
     t0 = time.time()
     clf.fit(train_images,train_labels)
     tgrid = time.time() - t0
     print("Total search time: ", "%.3f" % tgrid, "s")
 
-    print("Best parameters set found on development set:")
-    print()
-    print(clf.best_params_)
-    print()
-    print("Grid scores on development set:")
-    print()
-    means = clf.cv_results_['mean_test_score']
-    stds = clf.cv_results_['std_test_score']
-    for mean, std, params in zip(means, stds, clf.cv_results_['params']):
-        print("%0.3f (+/-%0.03f) for %r"
-              % (mean, std * 2, params))
-    print()
+    # Get best classifier
+    print("Best params: ", clf.best_params_)
+    print("Best score:  ", clf.best_score_)
 
-    print("Detailed classification report:")
-    print()
-    print("The model is trained on the full development set.")
-    print("The scores are computed on the full evaluation set.")
-    print()
-    y_true, y_pred = y_test, clf.predict(X_test)
-    print(classification_report(y_true, y_pred))
-    print()
+    # Create classifier with best params
+    clfbest = HybridKMeans(**clf.best_params_)
 
-mainCV()
+    # Train classifier on full dataset
+    t0 = time.time()
+    clfbest.fit(train_images,train_labels)
+    ttrain = time.time() - t0
+
+    score0 = clfbest.score(train_images,train_labels)
+
+    t0 = time.time()
+    score1 = clfbest.score(test_images,test_labels)
+    ttest = time.time() - t0
+
+    print("Best classifier training time:     ", "%.3f" % ttrain, "s")
+    print("Best classifier validation time:   ", "%.3f" % ttest, "s")
+
+    print("Best classifier training score:   ", "%.2f" % (score0*100), "%")
+    print("Best classifier validation score: ", "%.2f" % (score1*100), "%")
+
+    return clfbest, clf
+
+clf, gridclf = mainCV()
