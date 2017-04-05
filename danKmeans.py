@@ -68,6 +68,10 @@ class HybridKMeans(object):
         self.classifier = None
 
     def setCentroids(self,X,y):
+        # Convert y from dataframe to numpy array if necessary
+        if type(y) == pd.DataFrame:
+            y = y.as_matrix().ravel()
+
         # Get all unique class labels
         labels = np.unique(y)
         numLabels = len(labels)
@@ -174,8 +178,6 @@ def mainCV():
                                                                              scaleData,
                                                                              pca_dimension)
 
-    train_labels = train_labels.as_matrix().ravel()
-    test_labels = test_labels.as_matrix().ravel()
 
     clf = GridSearchCV(HybridKMeans(), param_grid=params, refit=refit)
 
@@ -209,6 +211,6 @@ def mainCV():
     print("Best classifier training score:   ", "%.2f" % (score0*100), "%")
     print("Best classifier validation score: ", "%.2f" % (score1*100), "%")
 
-    return clfbest, clf
+   return clfbest, clf
 
 clf, gridclf = mainCV()
