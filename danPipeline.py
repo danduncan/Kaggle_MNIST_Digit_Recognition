@@ -14,6 +14,7 @@ import copy  # Using copy.deepcopy()
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
+import os
 
 # Architecture:
 # Binarize
@@ -147,8 +148,73 @@ def get_gridsearch_top_models(gs=None, numModels=10):
 
     topModels['params_condensed'] = params_condensed
 
+    # Include total number of models that were analyzed
+    topModels['total_models_tested'] = totalModels
 
     return topModels
+
+
+# Convert params to string
+# Params is a tuple of dicts
+def params_to_string(params):
+    numModels = len(params)
+
+    str = ""
+
+    for i in range(numModels):
+        p = params[i]
+        str += "Model " + i.__str__() + ":\n"
+        keys = p.keys()
+        for key in keys:
+            str += "\t" + key + ":\t" + p[key].__str__() + "\n"
+
+        str += "\n"
+
+    return str
+
+
+
+# Save topModels to file with other statistics
+def save_stats_to_file(topModels,stats):
+    # Lines 1-4:
+    # Maximum accuracy
+    # Training set size
+    # Total models trained
+    # Total train time
+
+    # Filename should be based on best score
+    score_rounded = int(10000*stats['best_score'])
+    fileroot = "results/gridsearch_score_" + score_rounded.__str__()
+
+    filename = fileroot + ".txt"
+    i = 1
+    while os.path.isfile(filename) == True:
+        # Do not overwrite existing files
+        filename = fileroot + "_" + i.__str__() + ".txt"
+        i+=1
+
+    f = open(filename,'w+')
+
+    # Write first 4 lines
+    f.write("Max test accuracy: %.3f" % (100*stats['best_score']) + "% \n")
+    f.write("Training set size %.0f" % stats['training_set_size'] + "\n")
+    f.write('Total models trained: %.0f' % stats['number_models'] + "\n")
+    f.write('Train time: %.2f' % stats['train_time'] + "s\n\n")
+
+    # Write more detailed info
+    f.write("Best model parameters: \n" + topModels['params'][0].__str__() + "\n\n")
+    f.write("All Train Scores:\n" + topModels['train_score'].__str__() + "\n\n")
+    f.write("All Test Scores:\n" + topModels['test_score'].__str__() + "\n\n")
+    f.write("All Test Std Devs:\n" + topModels['test_std'].__str__() + "\n\n")
+    f.write("All Score Times:\n" + topModels['score_time'].__str__() + "\n\n")
+    f.write("All model parameters:\n" + params_to_string(topModels['params']))
+
+    # Close file
+    f.close()
+
+    return f
+
+
 
 # Run basic pipeline
 def run_basic_pipeline():
@@ -170,57 +236,73 @@ def run_basic_pipeline():
     return pip
 
 # Run grid search over full pipeline
-Xtrain, ytrain, Xtest, ytest = get_conditioned_training_data(split=False)
+def pipeline_gridsearch(param_set=None):
+    Xtrain, ytrain, Xtest, ytest = get_conditioned_training_data(split=False)
+    training_set_size = len(ytrain)
+    print("Training set size: ", training_set_size, "images")
 
+    # Create classifiers
+    pipeline = Pipeline([
+        ('binarizer',Binarizer()),
+        ('scaler',StandardScaler()),
+        #('pca',PCA()),
+        ('mlp',MLPClassifier())
+    ])
 
-# Create classifiers
-# bin = Binarizer()
-# scaler = StandardScaler()
-# pca = PCA()
-# clf = MLPClassifier()
-pipeline = Pipeline([
-    ('binarizer',Binarizer()),
-    ('scaler',StandardScaler()),
-    ('pca',PCA()),
-    ('mlp',MLPClassifier())
-])
+    # Create grid search
+    gs = GridSearchCV(pipeline, param_grid=param_set, refit=True, n_jobs=6, pre_dispatch='2*n_jobs', verbose=0)
+
+    # Run grid search
+    print("Begin training...")
+    t0 = time.time()
+    gs = gs.fit(Xtrain, ytrain)
+    trainTime = time.time() - t0
+    print("\nTotal search time: ", "%.3f" % trainTime, "s")
+    print("Total models tested: ", "%.0f" % len(gs.cv_results_['mean_train_score']))
+
+    # Get best classifier
+    print("\nBest params: ", gs.best_params_)
+    print("Best validation score:  ", "%.4f" % gs.best_score_)
+
+    # Compile important statistics
+    stats = {
+        'train_time': trainTime,
+        'training_set_size': training_set_size,
+        'best_score': gs.best_score_,
+        'number_models': len(gs.cv_results_['mean_train_score'])
+    }
+
+    # Return the gridsearch object
+    return gs, stats
 
 # Specify all parameters
 param_set = {
     "binarizer__binarize" : [True],
     "scaler__with_mean": [True,False],
-    "scaler__with_std": [False],
-    "pca__whiten" : [False],
-    "pca__n_components": [20,50,100,150,200], #,250,300],
+    "scaler__with_std": [True,False],
+    #"pca__whiten" : [False],
+    #"pca__n_components": [20,50,100,150,200], #,250,300],
     "mlp__alpha": [0.0,0.00001,0.0001,0.001],
-    "mlp__hidden_layer_sizes": [(100,),(200,),(100,100),(200,200),(100,100,100),(200,200,200)]
+    "mlp__hidden_layer_sizes": [(100,),(300,),(200,),(300,300),(200,200),(300,300,300),(200,200,200),(300,200,100),(100,200,300)]
 }
 
-# Create grid search
-gs = GridSearchCV(pipeline, param_grid=param_set, refit=True, n_jobs=4, pre_dispatch='2*n_jobs', verbose=0)
-
-# Run grid search
-print("Begin training...")
-t0 = time.time()
-gs = gs.fit(Xtrain,ytrain)
-tgrid = time.time() - t0
-print("\nTotal search time: ", "%.3f" % tgrid, "s")
-print("Total models tested: ", "%.0f" % len(gs.cv_results_['mean_train_score']))
-
-# Get best classifier
-print("\nBest params: ", gs.best_params_)
-print("Best validation score:  ", "%.4f" % gs.best_score_)
+# Run gridsearch
+gs, stats = pipeline_gridsearch(param_set=param_set)
 
 # Extract top models
 topModels = get_gridsearch_top_models(gs,numModels=20)
 print("Top validation scores: \n", topModels['test_score'])
 
-# Run classifier on test data
-t0 = time.time()
-score = gs.score(Xtest, ytest)
-ttest = time.time() - t0
-print("\nBest classifier test time: ", "%.2f" % ttest, "s")
-print("Best classifier test accuracy: ", "%.2f" % (100*score), "%")
+# Save stats to file
+f = save_stats_to_file(topModels,stats)
+
+
+# Run classifier on test data (only works if data was split
+# t0 = time.time()
+# score = gs.score(Xtest, ytest)
+# ttest = time.time() - t0
+# print("\nBest classifier test time: ", "%.2f" % ttest, "s")
+# print("Best classifier test accuracy: ", "%.2f" % (100*score), "%")
 
 
 # Best classifier so far:
