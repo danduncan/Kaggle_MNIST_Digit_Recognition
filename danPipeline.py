@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
 from sklearn.externals import joblib
+from sklearn.svm import SVC
+from sklearn.ensemble import *
 import os
 from sklearn.metrics import classification_report
 import copy  # Using copy.deepcopy()
@@ -177,16 +179,19 @@ def pipeline_gridsearch_to_string(gs):
     return str
 
 # Save topModels to file with other statistics
-def save_stats_to_file(gs,topModels,stats):
+def save_stats_to_file(gs,topModels,stats,model=None):
     # Lines 1-4:
     # Maximum accuracy
     # Training set size
     # Total models trained
     # Total train time
 
+    if model is None:
+        model = 'score'
+
     # Filename should be based on best score
     score_rounded = int(10000*stats['best_score'])
-    fileroot0 = "results/gridsearch_score_" + score_rounded.__str__()
+    fileroot0 = "results/gridsearch_" + model + "_" + score_rounded.__str__()
     fileroot = fileroot0
 
     filename = fileroot + ".txt"
@@ -278,15 +283,46 @@ def pipeline_gridsearch(classifier,param_set=None,num_training_images=None):
     # Return the gridsearch object
     return gs, stats
 
-# Run a gridsearch with an MLP pipeline
 def mlp_pipeline_gridsearch():
+    # Create classifiers
+    pipeline = Pipeline([
+        ('binarizer', Binarizer()),
+        ('scaler', StandardScaler()),
+        ('pca', PCA()),
+        ('mlp', MLPClassifier())
+    ])
 
+    # Specify all parameters
+    param_set = {
+        "binarizer__binarize": [True],
+        "scaler__with_mean": [False],
+        "scaler__with_std": [False],
+        "pca__whiten": [False],
+        "pca__n_components": [50, 100],  # ,20,150,200,250,300],
+        "mlp__alpha": [0.0, 0.00001, 0.0001, 0.001],
+        "mlp__hidden_layer_sizes": [(500,), (500, 500), (500, 500, 500), (500, 500, 500, 500)]
+    }
+
+    # Run gridsearch
+    gs, stats = pipeline_gridsearch(pipeline, param_set=param_set, num_training_images=None)
+
+    # Extract top models
+    topModels = get_gridsearch_top_models(gs, numModels=20)
+    print("Top validation scores: \n", topModels['test_score'])
+
+    # Save stats to file
+    f = save_stats_to_file(gs, topModels, stats, model="MLP")
+
+    return gs, stats, topModels
+
+# Run a gridsearch with an SVM pipeline
+def svm_pipeline_gridsearch():
     # Create classifiers
     pipeline = Pipeline([
         ('binarizer',Binarizer()),
         ('scaler',StandardScaler()),
         ('pca',PCA()),
-        ('mlp',MLPClassifier())
+        ('svc',SVC())
     ])
 
     # Specify all parameters
@@ -295,10 +331,12 @@ def mlp_pipeline_gridsearch():
         "scaler__with_mean": [False],
         "scaler__with_std": [False],
         "pca__whiten" : [False],
-        "pca__n_components": [50,100], #,20,150,200,250,300],
-        "mlp__alpha": [0.0,0.00001,0.0001,0.001],
-        "mlp__hidden_layer_sizes": [(500,),(500,500),(500,500,500),(500,500,500,500)]
+        "pca__n_components": [20,50,100,200], #150,200,250,300],
+        "svc__kernel": ["rbf"],
+        "svc__decision_function_shape": ['ovr']
     }
+
+    print("Pipeline with SVM")
 
     # Run gridsearch
     gs, stats = pipeline_gridsearch(pipeline,param_set=param_set,num_training_images=None)
@@ -308,9 +346,47 @@ def mlp_pipeline_gridsearch():
     print("Top validation scores: \n", topModels['test_score'])
 
     # Save stats to file
-    f = save_stats_to_file(gs,topModels,stats)
+    f = save_stats_to_file(gs,topModels,stats,model="SVM")
 
     return gs, stats, topModels
 
-gs, stats, topModels = mlp_pipeline_gridsearch()
+# Run a gridsearch on random forests
+def random_forest_pipeline_gridsearch():
+    # Create classifiers
+    pipeline = Pipeline([
+        ('binarizer',Binarizer()),
+        ('scaler',StandardScaler()),
+        ('pca',PCA()),
+        ('rf',RandomForestClassifier())
+    ])
+
+    # Specify all parameters
+    param_set = {
+        "binarizer__binarize" : [True],
+        "scaler__with_mean": [True,False],
+        "scaler__with_std": [True,False],
+        "pca__whiten" : [True,False],
+        "pca__n_components": [20,50], # ,100,200], #150,200,250,300],
+        "rf__criterion": ["gini","entropy"],
+        "rf__max_features": ["sqrt","log2"], # [None,"sqrt","log2"]
+        "rf__n_estimators": [40,50,60], # [5,10,20,30,40,50],
+        "rf__n_jobs": [1]
+    }
+
+    print("Pipeline with RandomForest")
+
+    # Run gridsearch
+    gs, stats = pipeline_gridsearch(pipeline,param_set=param_set,num_training_images=None)
+
+    # Extract top models
+    topModels = get_gridsearch_top_models(gs,numModels=20)
+    print("Top validation scores: \n", topModels['test_score'])
+
+    # Save stats to file
+    f = save_stats_to_file(gs,topModels,stats,model="RanForest")
+
+    return gs, stats, topModels
+
+
+gs, stats, topModels = random_forest_pipeline_gridsearch()
 
