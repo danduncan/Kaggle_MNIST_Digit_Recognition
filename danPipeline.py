@@ -3,26 +3,18 @@
 from getTrainingData import *
 import time  # Allow time.time()
 import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.cluster import KMeans
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import classification_report
 from sklearn.pipeline import Pipeline
 import pandas as pd
 from sklearn.model_selection import train_test_split
-import copy  # Using copy.deepcopy()
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.neural_network import MLPClassifier
+from sklearn.externals import joblib
 import os
+from sklearn.metrics import classification_report
+import copy  # Using copy.deepcopy()
 
-# Architecture:
-# Binarize
-# Rescale
-# PCA
-# Multilayer Perceptron
-
-# Also try feature selection with SelectKBest
 
 class Binarizer(object):
     def __init__(self,binarize=True):
@@ -172,10 +164,20 @@ def params_to_string(params):
 
     return str
 
+# Given pipeline gridsearch, get string of class names for steps in pipeline
+def pipeline_gridsearch_to_string(gs):
+    pip = gs.estimator
+    step = pip.steps
+    str = "Pipeline Architecture:\n"
 
+    for i in range(len(step)):
+        str += "\t" + (i+1).__str__() +".  " + step[i][1].__class__.__name__ + "\n"
+
+    str += "\n"
+    return str
 
 # Save topModels to file with other statistics
-def save_stats_to_file(topModels,stats):
+def save_stats_to_file(gs,topModels,stats):
     # Lines 1-4:
     # Maximum accuracy
     # Training set size
@@ -184,14 +186,17 @@ def save_stats_to_file(topModels,stats):
 
     # Filename should be based on best score
     score_rounded = int(10000*stats['best_score'])
-    fileroot = "results/gridsearch_score_" + score_rounded.__str__()
+    fileroot0 = "results/gridsearch_score_" + score_rounded.__str__()
+    fileroot = fileroot0
 
     filename = fileroot + ".txt"
     i = 1
     while os.path.isfile(filename) == True:
         # Do not overwrite existing files
-        filename = fileroot + "_" + i.__str__() + ".txt"
+        fileroot = fileroot0 + "_" + i.__str__()
+        filename = fileroot + ".txt"
         i+=1
+
 
     f = open(filename,'w+')
 
@@ -200,6 +205,9 @@ def save_stats_to_file(topModels,stats):
     f.write("Training set size %.0f" % stats['training_set_size'] + "\n")
     f.write('Total models trained: %.0f' % stats['number_models'] + "\n")
     f.write('Train time: %.2f' % stats['train_time'] + "s\n\n")
+
+    # Write pipeline architecture
+    f.write(pipeline_gridsearch_to_string(gs))
 
     # Write more detailed info
     f.write("Best model parameters: \n" + topModels['params'][0].__str__() + "\n\n")
@@ -212,9 +220,12 @@ def save_stats_to_file(topModels,stats):
     # Close file
     f.close()
 
+    # Save the gridsearch object to file too
+    # Object can be loaded back into memory by:
+    #   gs = joblib.load("filename.pkl")
+    joblib.dump(gs, fileroot + ".pkl")
+
     return f
-
-
 
 # Run basic pipeline
 def run_basic_pipeline():
@@ -236,21 +247,13 @@ def run_basic_pipeline():
     return pip
 
 # Run grid search over full pipeline
-def pipeline_gridsearch(param_set=None):
-    Xtrain, ytrain, Xtest, ytest = get_conditioned_training_data(split=False)
+def pipeline_gridsearch(classifier,param_set=None,num_training_images=None):
+    Xtrain, ytrain, Xtest, ytest = get_conditioned_training_data(num_training_images=num_training_images,split=False)
     training_set_size = len(ytrain)
     print("Training set size: ", training_set_size, "images")
 
-    # Create classifiers
-    pipeline = Pipeline([
-        ('binarizer',Binarizer()),
-        ('scaler',StandardScaler()),
-        #('pca',PCA()),
-        ('mlp',MLPClassifier())
-    ])
-
     # Create grid search
-    gs = GridSearchCV(pipeline, param_grid=param_set, refit=True, n_jobs=6, pre_dispatch='2*n_jobs', verbose=0)
+    gs = GridSearchCV(classifier, param_grid=param_set, refit=True, n_jobs=6, pre_dispatch='2*n_jobs', verbose=0)
 
     # Run grid search
     print("Begin training...")
@@ -275,39 +278,39 @@ def pipeline_gridsearch(param_set=None):
     # Return the gridsearch object
     return gs, stats
 
-# Specify all parameters
-param_set = {
-    "binarizer__binarize" : [True],
-    "scaler__with_mean": [True,False],
-    "scaler__with_std": [True,False],
-    #"pca__whiten" : [False],
-    #"pca__n_components": [20,50,100,150,200], #,250,300],
-    "mlp__alpha": [0.0,0.00001,0.0001,0.001],
-    "mlp__hidden_layer_sizes": [(100,),(300,),(200,),(300,300),(200,200),(300,300,300),(200,200,200),(300,200,100),(100,200,300)]
-}
+# Run a gridsearch with an MLP pipeline
+def mlp_pipeline_gridsearch():
 
-# Run gridsearch
-gs, stats = pipeline_gridsearch(param_set=param_set)
+    # Create classifiers
+    pipeline = Pipeline([
+        ('binarizer',Binarizer()),
+        ('scaler',StandardScaler()),
+        ('pca',PCA()),
+        ('mlp',MLPClassifier())
+    ])
 
-# Extract top models
-topModels = get_gridsearch_top_models(gs,numModels=20)
-print("Top validation scores: \n", topModels['test_score'])
+    # Specify all parameters
+    param_set = {
+        "binarizer__binarize" : [True],
+        "scaler__with_mean": [False],
+        "scaler__with_std": [False],
+        "pca__whiten" : [False],
+        "pca__n_components": [50,100], #,20,150,200,250,300],
+        "mlp__alpha": [0.0,0.00001,0.0001,0.001],
+        "mlp__hidden_layer_sizes": [(500,),(500,500),(500,500,500),(500,500,500,500)]
+    }
 
-# Save stats to file
-f = save_stats_to_file(topModels,stats)
+    # Run gridsearch
+    gs, stats = pipeline_gridsearch(pipeline,param_set=param_set,num_training_images=None)
 
+    # Extract top models
+    topModels = get_gridsearch_top_models(gs,numModels=20)
+    print("Top validation scores: \n", topModels['test_score'])
 
-# Run classifier on test data (only works if data was split
-# t0 = time.time()
-# score = gs.score(Xtest, ytest)
-# ttest = time.time() - t0
-# print("\nBest classifier test time: ", "%.2f" % ttest, "s")
-# print("Best classifier test accuracy: ", "%.2f" % (100*score), "%")
+    # Save stats to file
+    f = save_stats_to_file(gs,topModels,stats)
 
+    return gs, stats, topModels
 
-# Best classifier so far:
-# Binarize = True
-# scaler: mean=False, std=False
-# PCA = 50, whiten=False
-# MLP alpha=0.001, layers=(100,)
-# Validation accuracy = 97.24%
+gs, stats, topModels = mlp_pipeline_gridsearch()
+
