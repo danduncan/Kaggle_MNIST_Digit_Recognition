@@ -14,8 +14,8 @@ from sklearn.externals import joblib
 from sklearn.svm import SVC
 from sklearn.ensemble import *
 import os
-from sklearn.metrics import classification_report
 import copy  # Using copy.deepcopy()
+from sklearn.ensemble import BaggingClassifier
 
 
 class Binarizer(object):
@@ -30,6 +30,7 @@ class Binarizer(object):
 
     def transform(self, X, **transform_params):
         if self.binarize == True:
+            X = copy.deepcopy(X)
             X[X>0] = 1.0
             X = X.astype(float)  # This prevents warning being raised for float conversion
         return X
@@ -355,21 +356,21 @@ def random_forest_pipeline_gridsearch():
     # Create classifiers
     pipeline = Pipeline([
         ('binarizer',Binarizer()),
-        ('scaler',StandardScaler()),
-        ('pca',PCA()),
+        #('scaler',StandardScaler()),
+        #('pca',PCA()),
         ('rf',RandomForestClassifier())
     ])
 
     # Specify all parameters
     param_set = {
-        "binarizer__binarize" : [True],
-        "scaler__with_mean": [True,False],
-        "scaler__with_std": [True,False],
-        "pca__whiten" : [True,False],
-        "pca__n_components": [20,50], # ,100,200], #150,200,250,300],
+        "binarizer__binarize" : [True,False],
+        #"scaler__with_mean": [True,False],
+        #"scaler__with_std": [True,False],
+        #"pca__whiten" : [True,False],
+        #"pca__n_components": [20,50], # ,100,200], #150,200,250,300],
         "rf__criterion": ["gini","entropy"],
         "rf__max_features": ["sqrt","log2"], # [None,"sqrt","log2"]
-        "rf__n_estimators": [40,50,60], # [5,10,20,30,40,50],
+        "rf__n_estimators": [10,20,40,50,60,100,200,300,400,500], # [5,10,20,30,40,50],
         "rf__n_jobs": [1]
     }
 
@@ -379,7 +380,7 @@ def random_forest_pipeline_gridsearch():
     gs, stats = pipeline_gridsearch(pipeline,param_set=param_set,num_training_images=None)
 
     # Extract top models
-    topModels = get_gridsearch_top_models(gs,numModels=20)
+    topModels = get_gridsearch_top_models(gs,numModels=100)
     print("Top validation scores: \n", topModels['test_score'])
 
     # Save stats to file
@@ -387,6 +388,159 @@ def random_forest_pipeline_gridsearch():
 
     return gs, stats, topModels
 
+# Create VotingClassifier with the optimum pipelines
+def pipeline_best(Xtrain,ytrain,Xtest,ytest):
+    # Best MLP:
+    mlp_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('scaler', StandardScaler(with_mean=False,with_std=True)),
+        ('pca', PCA(n_components=50, whiten=False)),
+        ('mlp', MLPClassifier(hidden_layer_sizes=(500,),alpha=0.0001))
+    ])
 
-gs, stats, topModels = random_forest_pipeline_gridsearch()
+    # Best SVM:
+    # Create classifiers
+    svm_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('scaler', StandardScaler(with_mean=False, with_std=False)),
+        ('pca', PCA(n_components=50, whiten=False)),
+        ('svc', SVC(kernel='rbf', decision_function_shape='ovr'))
+    ])
+
+    # Best RandomForest
+    # Create classifiers
+    rf_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('rf', RandomForestClassifier(criterion='gini', max_features='sqrt', n_estimators=500, n_jobs=-1))
+    ])
+
+    pipelines = [
+        ('MLP', mlp_pipeline),
+        ('SVM', svm_pipeline),
+        ('RandomForest', rf_pipeline)
+    ]
+
+    print("Best pipelines combined: MLP, SVM, RF")
+
+    # Train the pipelines
+    for i in range(len(pipelines)):
+        label, model = pipelines[i]
+
+        print("Model", i, ": ", type(model._final_estimator).__name__)
+
+        tstart = time.time()
+        model.fit(Xtrain, ytrain)
+        train_time = time.time() - tstart
+
+        print("Train time: ", "%.3f" % train_time, "s")
+
+        test_start_time = time.time()
+        err = model.score(Xtest, ytest)
+        test_time = time.time() - test_start_time
+
+        print("Test time:  ", "%.3f" % test_time, "s")
+        print("Test accuracy: ", "%.2f" % (100 * err), '%\n')
+
+    return pipelines
+
+# Create pipelines with bagging classifiers of three best classifiers
+def pipeline_bagging_best(Xtrain,ytrain,Xtest,ytest):
+    # Pick number of classifiers in each BaggingClassifier:
+    numClf = 9
+
+    # Best MLP:
+    base_mlp = MLPClassifier(hidden_layer_sizes=(500,),alpha=0.0001)
+    mlp_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('scaler', StandardScaler(with_mean=False,with_std=True)),
+        ('pca', PCA(n_components=50, whiten=False)),
+        ('mlp', BaggingClassifier(base_estimator=base_mlp, n_estimators=numClf, n_jobs=-1))
+    ])
+
+    # Best SVM:
+    # Create classifiers
+    base_svm = SVC(kernel='rbf', decision_function_shape='ovr')
+    svm_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('scaler', StandardScaler(with_mean=False, with_std=False)),
+        ('pca', PCA(n_components=50, whiten=False)),
+        ('svc', BaggingClassifier(base_estimator=base_svm, n_estimators=numClf, n_jobs=-1))
+    ])
+
+    # Best RandomForest
+    # Create classifiers
+    base_rf = RandomForestClassifier(criterion='gini', max_features='sqrt', n_estimators=500, n_jobs=2)
+    rf_pipeline = Pipeline([
+        ('binarizer', Binarizer(binarize=True)),
+        ('rf', BaggingClassifier(base_estimator=base_rf, n_estimators=numClf, n_jobs=-1))
+    ])
+
+    pipelines = [
+        ('MLP', mlp_pipeline),
+        ('SVM', svm_pipeline),
+        ('RandomForest', rf_pipeline)
+    ]
+
+    print("Best pipelines combined: Bagging of MLP, SVM, RF")
+
+    # Train the pipelines
+    for i in range(len(pipelines)):
+        label, model = pipelines[i]
+
+        print("Model", i, ": Bagging of",numClf,"*", type(model._final_estimator.base_estimator).__name__)
+
+        tstart = time.time()
+        model.fit(Xtrain, ytrain)
+        train_time = time.time() - tstart
+
+        print("Train time: ", "%.3f" % train_time, "s")
+
+        test_start_time = time.time()
+        err = model.score(Xtest, ytest)
+        test_time = time.time() - test_start_time
+
+        print("Test time:  ", "%.3f" % test_time, "s")
+        print("Test accuracy: ", "%.2f" % (100 * err), '%\n')
+
+    return pipelines
+
+
+def voting_classifier(pipelines,Xtrain,ytrain,Xtest,ytest):
+    # Create voting model
+    vclf = VotingClassifier(estimators=pipelines, voting='hard', n_jobs=-1)
+
+    # Train voting model
+    tstart = time.time()
+    vclf.fit(Xtrain, ytrain)
+    train_time = time.time() - tstart
+    print("Voter train time: ", "%.3f" % train_time, "s")
+
+    # Get the validation error
+    test_start_time = time.time()
+    err = vclf.score(Xtest, ytest)
+    test_time = time.time() - test_start_time
+    print("Voter test time:  ", "%.3f" % test_time, "s")
+
+    ttotal = time.time() - tstart
+
+    # Print runtime and accuracy
+    print("Total time: ", "%.3f" % ttotal, "s")
+    print("Voter test accuracy: ", "%.2f" % (100 * err), '%\n')
+
+    # Signal process completed successfully
+    print("All done!")
+
+    return vclf
+
+
+# Get data
+Xtrain, ytrain, Xtest, ytest = get_conditioned_training_data(num_training_images=None, split=True)
+training_set_size = len(ytrain)
+print("Training set size: ", training_set_size, "images")
+
+# Train pipeline components
+pipelines = pipeline_best(Xtrain,ytrain,Xtest,ytest)
+
+vclf = voting_classifier(pipelines,Xtest,ytest,Xtrain,ytrain)
+#gs, stats, topModels = random_forest_pipeline_gridsearch()
 
