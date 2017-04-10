@@ -96,5 +96,5 @@ svm_pipeline = get_svm_pipeline(Xtrain,ytrain,Xtest,ytest)
 #joblib.dump(svm_pipeline,"svm_pipeline.pkl")
 
 # How to reload trained SVM pipeline from disk:
-#svm_pipeline = joblib.load("svm_pipeline.pkl")
+#pip = joblib.load("svm_pipeline.pkl")
 print("All done!")
